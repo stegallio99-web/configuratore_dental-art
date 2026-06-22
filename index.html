@@ -490,14 +490,20 @@ const sinput=document.getElementById("searchInput"),drop=document.getElementById
 sinput.addEventListener("input",()=>{
   const q=sinput.value.trim();
   if(q.length<1){drop.style.display="none";return}
-  const res=catalog.filter(p=>p.code.toLowerCase().includes(q.toLowerCase())||p.name.toLowerCase().includes(q.toLowerCase())).slice(0,10);
+  const ql=q.toLowerCase();
+  // Priorità: 1) codice esatto, 2) codice inizia con, 3) codice contiene, 4) nome contiene
+  const exact   =catalog.filter(p=>p.code.toLowerCase()===ql);
+  const starts  =catalog.filter(p=>p.code.toLowerCase().startsWith(ql)&&p.code.toLowerCase()!==ql);
+  const codeHas =catalog.filter(p=>p.code.toLowerCase().includes(ql)&&!p.code.toLowerCase().startsWith(ql));
+  const nameHas =catalog.filter(p=>p.name.toLowerCase().includes(ql)&&!p.code.toLowerCase().includes(ql));
+  const res=[...exact,...starts,...codeHas,...nameHas].slice(0,12);
   if(!res.length){drop.style.display="none";return}
   drop.innerHTML=res.map(p=>{const ci=catalog.indexOf(p);return`<div class="acrow" onclick="addCart(${ci})"><span class="accode">${p.code}</span><span class="acname">${hl(p.name,q)}</span><span class="acprice">${fmt(p.price)}</span></div>`}).join("")+'<div class="achint">↵ Invio per aggiungere il primo risultato</div>';
   drop.style.display="block";
 });
 sinput.addEventListener("keydown",e=>{
   if(e.key==="Escape")drop.style.display="none";
-  if(e.key==="Enter"){const q=sinput.value.trim();const r=catalog.find(p=>p.code.toLowerCase().includes(q.toLowerCase())||p.name.toLowerCase().includes(q.toLowerCase()));if(r)addCart(catalog.indexOf(r))}
+  if(e.key==="Enter"){const q=sinput.value.trim();const ql=q.toLowerCase();const r=catalog.find(p=>p.code.toLowerCase()===ql)||catalog.find(p=>p.code.toLowerCase().startsWith(ql))||catalog.find(p=>p.code.toLowerCase().includes(ql))||catalog.find(p=>p.name.toLowerCase().includes(ql));if(r)addCart(catalog.indexOf(r))}
 });
 document.addEventListener("click",e=>{if(!e.target.closest(".ss"))drop.style.display="none"});
 
