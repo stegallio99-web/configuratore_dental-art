@@ -848,17 +848,14 @@ async function savePreventivo(){
   };
 
   try{
-    // Send via GET with encoded payload to avoid CORS issues
+    // GET request to Apps Script (ContentService responds with CORS-friendly headers)
     const encoded=encodeURIComponent(JSON.stringify(payload));
-    const r=await fetch(APPS_SCRIPT_URL+"?payload="+encoded,{
-      method:"GET",
-      mode:"no-cors"
-    });
-    // no-cors returns opaque response — assume success if no exception thrown
-    const res={ok:true};
+    const r=await fetch(APPS_SCRIPT_URL+"?payload="+encoded);
+    const res=await r.json();
     if(res.ok){
       btn.className="btn btn-green";
-      btn.innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Salvato!`;
+      const oid=res.orderId?(" "+res.orderId):"";
+      btn.innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Salvato!${oid}`;
       setTimeout(()=>{
         btn.className="btn btn-ghost";
         btn.innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Salva preventivo`;
