@@ -74,6 +74,9 @@ textarea.fi{min-height:70px;resize:vertical;line-height:1.5}
 .btn-primary{background:var(--black);color:var(--white)}
 .btn-primary:hover{background:var(--charcoal)}
 .btn-gold{background:var(--gold);color:var(--white)}
+.btn-green{background:#2e7d32;color:var(--white)}
+.btn-green:hover{background:#1b5e20}
+.btn-saving{background:var(--light);color:var(--muted);pointer-events:none}
 .btn-gold:hover{background:var(--gold-d)}
 .btn-ghost{background:transparent;color:var(--mid);border:.5px solid var(--border)}
 .btn-ghost:hover{background:var(--light);color:var(--black)}
@@ -351,7 +354,13 @@ textarea.fi{min-height:70px;resize:vertical;line-height:1.5}
       <div class="card"><div id="sumContent"></div></div>
       <div class="footer-row">
         <button class="btn btn-ghost" id="back2"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Modifica</button>
-        <button class="btn btn-gold" id="dlBtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Scarica PDF</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-ghost" id="saveBtn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Salva preventivo
+          </button>
+          <button class="btn btn-gold" id="dlBtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Scarica PDF</button>
+        </div>
       </div>
     </div>
   </div>
@@ -808,6 +817,60 @@ function buildSum(){
 }
 
 /* ── PDF ── */
+async function savePreventivo(){
+  const btn=document.getElementById("saveBtn");
+  btn.className="btn btn-saving";
+  btn.innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Salvataggio…`;
+
+  const effP=it=>{
+    const base=it.customPrice!==undefined?it.customPrice:it.price;
+    return it.itemDiscount>0?base*(1-it.itemDiscount/100):base;
+  };
+
+  const payload={
+    cliente:  document.getElementById("cName").value.trim(),
+    azienda:  document.getElementById("cCompany").value.trim(),
+    email:    document.getElementById("cEmail").value.trim(),
+    telefono: document.getElementById("cPhone").value.trim(),
+    note:     document.getElementById("cNotes").value.trim(),
+    totale:   cartSubtotal(),
+    scontoTotale: totalDiscount,
+    totaleScontato: cartTotal(),
+    prodotti: cart.map(it=>({
+      codice:      it.special?"SPEC":it.code,
+      nome:        it.name,
+      qty:         it.qty,
+      unit:        it.unit||"n",
+      prezzoUnit:  it.customPrice!==undefined?it.customPrice:it.price,
+      sconto:      it.itemDiscount||0,
+      prezzoTotale: effP(it)*parseFloat(it.qty||1)
+    }))
+  };
+
+  try{
+    const r=await fetch(APPS_SCRIPT_URL,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(payload)
+    });
+    const res=await r.json();
+    if(res.ok){
+      btn.className="btn btn-green";
+      btn.innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Salvato!`;
+      setTimeout(()=>{
+        btn.className="btn btn-ghost";
+        btn.innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Salva preventivo`;
+      }, 3000);
+    } else {
+      throw new Error(res.error||"Errore sconosciuto");
+    }
+  }catch(err){
+    btn.className="btn btn-ghost";
+    btn.innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Salva preventivo`;
+    alert("Errore nel salvataggio: "+err.message);
+  }
+}
+
 function loadImgAsBase64(src){
   return new Promise((resolve,reject)=>{
     const img=new Image();img.crossOrigin="anonymous";
@@ -919,6 +982,7 @@ async function genPDF(){
 }
 
 document.getElementById("dlBtn").addEventListener("click",genPDF);
+document.getElementById("saveBtn").addEventListener("click",savePreventivo);
 document.getElementById("dlSide").addEventListener("click",genPDF);
 
 loadCatalog();renderCart();renderSide();
