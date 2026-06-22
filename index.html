@@ -119,6 +119,10 @@ textarea.fi{min-height:70px;resize:vertical;line-height:1.5}
 .ccode{font-size:.7rem;color:var(--muted);font-family:monospace;letter-spacing:.02em}
 .special-item .ccode{color:var(--blue);opacity:.7}
 .qctrl{display:flex;align-items:center;background:var(--white);border:.5px solid var(--border);border-radius:20px;overflow:hidden}
+.unit-sel{border:none;background:transparent;font-family:'Inter',sans-serif;font-size:.72rem;font-weight:600;color:var(--mid);cursor:pointer;padding:0 8px;height:26px;outline:none;-webkit-appearance:none;appearance:none;border-left:.5px solid var(--border);min-width:44px;text-align:center}
+.unit-sel:focus{color:var(--gold-d)}
+.unit-sel:hover{background:var(--light)}
+.qty-unit-wrap{display:flex;align-items:center;gap:6px}
 .qbtn{width:26px;height:26px;border:none;background:transparent;cursor:pointer;color:var(--mid);font-size:1rem;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;font-family:'Inter',sans-serif}
 .qbtn:hover{background:var(--light);color:var(--black)}
 .qnum{font-size:.78rem;font-weight:600;min-width:22px;text-align:center;padding:0 2px}
@@ -398,33 +402,44 @@ let totalDiscount=0; // % sconto globale sul totale
 /* ── UTILS ── */
 function fmt(n){return"€\u00a0"+Number(n).toLocaleString("it-IT",{minimumFractionDigits:2,maximumFractionDigits:2})}
 function parseP(s){
-  let v=String(s||"").trim().replace(/[€\s]/g,"");
-  // Detect format: if both . and , present, last one is decimal separator
-  const hasDot=v.includes(".");const hasComma=v.includes(",");
-  if(hasDot&&hasComma){
-    // e.g. "1.250,00" → Italian: dot=thousands, comma=decimal
-    // e.g. "1,250.00" → English: comma=thousands, dot=decimal
-    const lastDot=v.lastIndexOf(".");const lastComma=v.lastIndexOf(",");
-    if(lastComma>lastDot){// Italian: 1.250,00
-      v=v.replace(/\./g,"").replace(",",".");
-    }else{// English: 1,250.00
-      v=v.replace(/,/g,"");
-    }
-  }else if(hasComma){
-    // only comma: could be decimal (1,5) or thousands (1,500)
-    const parts=v.split(",");
-    if(parts.length===2&&parts[1].length<=2){v=v.replace(",",".");}// decimal
-    else{v=v.replace(/,/g,"");}// thousands
-  }
-  // only dot or plain number: fine as-is
+  // CSV prices come as "473,00" or "1.247,00" (Italian format)
+  // Strip quotes, spaces, currency symbols
+  let v=String(s||"").trim().replace(/["\'€\s]/g,"");
+  // Italian format: dot=thousands separator, comma=decimal separator
+  // Remove thousands dots, replace decimal comma with dot
+  v=v.replace(/\./g,"").replace(",",".");
   return parseFloat(v)||0;
 }
+function parseFullCSV(text){
+  // Handles quoted fields that may contain commas and newlines
+  const rows=[];let row=[];let field="";let inQ=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(ch==='"'){
+      if(inQ&&text[i+1]==='"'){field+='"';i++;}// escaped quote
+      else inQ=!inQ;
+    } else if(ch===','&&!inQ){
+      row.push(field);field="";
+    } else if((ch==='\n'||ch==='\r')&&!inQ){
+      if(ch==='\r'&&text[i+1]==='\n')i++;// skip 
+
+      row.push(field);field="";
+      if(row.some(v=>v.trim()))rows.push(row);
+      row=[];
+    } else {
+      field+=ch;
+    }
+  }
+  if(field||row.length){row.push(field);if(row.some(v=>v.trim()))rows.push(row);}
+  return rows;
+}
+
 function csvLine(l){const r=[];let c="",q=false;for(const ch of l){if(ch==='"'){q=!q}else if(ch===","&&!q){r.push(c);c=""}else c+=ch}r.push(c);return r}
 function ini(n){return n.trim().split(" ").slice(0,2).map(w=>w[0]||"").join("").toUpperCase()||"?"}
 function hl(t,q){if(!q)return t;const i=t.toLowerCase().indexOf(q.toLowerCase());if(i<0)return t;return t.slice(0,i)+"<strong>"+t.slice(i,i+q.length)+"</strong>"+t.slice(i+q.length)}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 
-function cartSubtotal(){return cart.reduce((s,i)=>s+(i.customPrice!==undefined?i.customPrice:i.price)*i.qty,0)}
+function cartSubtotal(){return cart.reduce((s,i)=>s+(i.customPrice!==undefined?i.customPrice:i.price)*parseFloat(i.qty||1),0)}
 function cartTotal(){
   const sub=cartSubtotal();
   if(totalDiscount>0)return sub*(1-totalDiscount/100);
@@ -440,10 +455,15 @@ async function loadCatalog(){
     const txt=await r.text();
     if(!txt||txt.trim().length<5)throw new Error("Risposta vuota");
     catalog=[];
-    txt.trim().split("\n").slice(1).forEach(line=>{
-      const c=csvLine(line);
+    // Use robust parser that handles quoted fields with commas/newlines
+    const rows=parseFullCSV(txt);
+    rows.slice(1).forEach(c=>{
       if(c.length<2)return;
-      const item={code:(c[0]||"").trim().replace(/^"|"$/g,""),name:(c[1]||"").trim().replace(/^"|"$/g,""),price:parseP((c[2]||"").trim().replace(/^"|"$/g,""))};
+      const item={
+        code:(c[0]||"").trim().replace(/^"|"$/g,""),
+        name:(c[1]||"").trim().replace(/^"|"$/g,""),
+        price:parseP((c[2]||"").trim().replace(/^"|"$/g,""))
+      };
       if(item.code||item.name)catalog.push(item);
     });
     dot.className="sdot";lbl.textContent="Catalogo aggiornato";
@@ -486,12 +506,14 @@ function addCart(idx){
   const p=catalog[idx];if(!p)return;
   const ex=cart.find(i=>i.code===p.code&&!i.special);
   if(ex)ex.qty++;
-  else cart.push({id:uid(),code:p.code,name:p.name,price:p.price,qty:1,special:false,itemDiscount:0});
+  else cart.push({id:uid(),code:p.code,name:p.name,price:p.price,qty:1,unit:'n',special:false,itemDiscount:0});
   sinput.value="";drop.style.display="none";
   renderCart();renderSide();
 }
 function rmCart(id){cart=cart.filter(i=>i.id!==id);renderCart();renderSide()}
 function chQty(id,d){const it=cart.find(i=>i.id===id);if(!it)return;it.qty=Math.max(1,it.qty+d);renderCart();renderSide()}
+function changeUnit(id,val){const it=cart.find(i=>i.id===id);if(!it)return;it.unit=val;renderCart();renderSide()}
+function setQtyDirect(id,val){const it=cart.find(i=>i.id===id);if(!it)return;const v=parseFloat(String(val).replace(',','.'));if(!isNaN(v)&&v>0)it.qty=v;renderCart();renderSide()}
 
 function effPrice(it){
   const base=it.customPrice!==undefined?it.customPrice:it.price;
@@ -515,7 +537,7 @@ document.getElementById("sfAdd").addEventListener("click",()=>{
   const desc=document.getElementById("sfDesc").value.trim();
   const price=parseP(document.getElementById("sfPrice").value);
   if(!name){document.getElementById("sfName").focus();return}
-  cart.push({id:uid(),code:"SPEC",name:name,desc:desc,price:price,qty:1,special:true,itemDiscount:0});
+  cart.push({id:uid(),code:"SPEC",name:name,desc:desc,price:price,qty:1,unit:'n',special:true,itemDiscount:0});
   document.getElementById("specialForm").classList.remove("open");
   document.getElementById("sfName").value="";
   document.getElementById("sfDesc").value="";
@@ -531,13 +553,13 @@ function renderCart(){
     el.innerHTML=`<div class="empty"><div class="eico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5"><path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div><div class="etitle">Nessun prodotto selezionato</div><div class="esub">Cerca un articolo qui sopra per aggiungerlo.</div></div>`;
     cc.textContent="";return;
   }
-  const total=cart.reduce((s,i)=>s+i.qty,0);
+  const total=cart.length;
   cc.textContent=total+" articol"+(total===1?"o":"i")+" nel preventivo";
 
   el.innerHTML=cart.map((it,i)=>{
     const baseP=it.customPrice!==undefined?it.customPrice:it.price;
     const eff=effPrice(it);
-    const lineTotal=eff*it.qty;
+    const lineTotal=eff*parseFloat(it.qty||1);
     const hasDisc=it.itemDiscount>0;
     const isEditing=it._editing;
     const specialClass=it.special?" special-item":"";
@@ -555,10 +577,16 @@ function renderCart(){
         <div class="cname" style="display:flex;align-items:center;gap:5px">${it.name} ${specialBadge}</div>
         <div class="ccode">${it.special&&it.desc?it.desc:it.code}</div>
       </div>
-      <div class="qctrl">
-        <button class="qbtn" onclick="chQty('${it.id}',-1)">−</button>
-        <span class="qnum">${it.qty}</span>
-        <button class="qbtn" onclick="chQty('${it.id}',1)">+</button>
+      <div class="qty-unit-wrap">
+        <div class="qctrl">
+          <button class="qbtn" onclick="chQty('${it.id}',-1)">−</button>
+          <input type="number" class="qnum" style="width:42px;border:none;background:transparent;font-family:'Inter',sans-serif;font-size:.78rem;font-weight:600;text-align:center;outline:none;-webkit-appearance:none;appearance:none" min="0.01" step="0.01" value="${it.qty}" onchange="setQtyDirect('${it.id}',this.value)" onclick="this.select()">
+          <button class="qbtn" onclick="chQty('${it.id}',1)">+</button>
+          <select class="unit-sel" onchange="changeUnit('${it.id}',this.value)">
+            <option value="n" ${it.unit==='n'?'selected':''}>pz</option>
+            <option value="cm" ${it.unit==='cm'?'selected':''}>cm</option>
+          </select>
+        </div>
       </div>
       ${discBadge}
       <div class="price-wrap">
@@ -641,7 +669,7 @@ function updateDiscPreview(){
   }else{
     const it=cart.find(i=>i.id===discTarget);
     if(!it)return;
-    const base=(it.customPrice!==undefined?it.customPrice:it.price)*it.qty;
+    const base=(it.customPrice!==undefined?it.customPrice:it.price)*parseFloat(it.qty||1);
     const after=base*(1-pct/100);
     discPreview.textContent=`${fmt(base)} → ${fmt(after)} (risparmi ${fmt(base-after)})`;
   }
@@ -672,7 +700,8 @@ function renderSide(){
   else sl.innerHTML=cart.map(i=>{
     const eff=effPrice(i);
     const hasD=i.itemDiscount>0;
-    return`<div class="sline"><span class="sllabel" title="${i.name}">${i.name}${i.qty>1?" ×"+i.qty:""}</span>${hasD?`<span style="font-size:.7rem;color:#2e7d32;margin-right:2px">-${i.itemDiscount}%</span>`:""}<span class="slval">${fmt(eff*i.qty)}</span></div>`;
+    const unitLbl=i.unit==='cm'?' cm':i.qty>1?' ×'+i.qty:'';
+    return`<div class="sline"><span class="sllabel" title="${i.name}">${i.name}${unitLbl}</span>${hasD?`<span style="font-size:.7rem;color:#2e7d32;margin-right:2px">-${i.itemDiscount}%</span>`:""}<span class="slval">${fmt(eff*parseFloat(i.qty||1))}</span></div>`;
   }).join("");
 
   const sub=cartSubtotal();
@@ -747,10 +776,10 @@ function buildSum(){
       <td style="color:var(--muted);font-size:.75rem">${i+1}</td>
       <td style="font-family:monospace;font-size:.75rem;color:var(--muted)">${it.special?"SPEC":it.code}</td>
       <td style="font-weight:500">${nameCell}</td>
-      <td style="text-align:center">${it.qty}</td>
+      <td style="text-align:center">${it.qty}${it.unit&&it.unit!=="n"?" "+it.unit:""}</td>
       <td style="text-align:right;color:var(--mid)">${hasD?`<span style="text-decoration:line-through;color:var(--muted)">${fmt(baseP)}</span><br>${fmt(eff)}`:fmt(baseP)}</td>
       <td style="text-align:right">${discCell}</td>
-      <td style="text-align:right;font-weight:600">${fmt(eff*it.qty)}</td>
+      <td style="text-align:right;font-weight:600">${fmt(eff*parseFloat(it.qty||1))}</td>
     </tr>`;
   }).join("");
 
@@ -762,7 +791,7 @@ function buildSum(){
   document.getElementById("sumContent").innerHTML=`
     <div class="sumhdr">${fh}${nt?`<div class="shf" style="grid-column:1/-1"><label>Note</label><span style="font-style:italic;font-weight:400">${nt}</span></div>`:""}</div>
     <table class="stbl">
-      <thead><tr><th style="width:28px">#</th><th style="width:80px">Codice</th><th>Descrizione</th><th style="width:36px;text-align:center">Qtà</th><th style="width:80px;text-align:right">P. Unit.</th><th style="width:50px;text-align:right">Sconto</th><th style="width:90px;text-align:right">Totale</th></tr></thead>
+      <thead><tr><th style="width:28px">#</th><th style="width:80px">Codice</th><th>Descrizione</th><th style="width:60px;text-align:center">Qtà / U.M.</th><th style="width:80px;text-align:right">P. Unit.</th><th style="width:50px;text-align:right">Sconto</th><th style="width:90px;text-align:right">Totale</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <div class="sum-total-wrap">
@@ -832,10 +861,10 @@ async function genPDF(){
         i+1,
         it.special?"SPEC":it.code,
         it.special&&it.desc?it.name+" — "+it.desc:it.name,
-        it.qty,
+        it.qty+(it.unit&&it.unit!=='n'?' '+it.unit:''),
         n2(baseP),
         it.itemDiscount>0?"-"+it.itemDiscount+"%":"—",
-        n2(eff*it.qty)
+        n2(eff*parseFloat(it.qty||1))
       ];
     }),
     margin:{left:M,right:M},
