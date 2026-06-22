@@ -353,7 +353,10 @@ textarea.fi{min-height:70px;resize:vertical;line-height:1.5}
       <p class="ssub">Verifica i dettagli e scarica il PDF da inviare al cliente.</p>
       <div class="card"><div id="sumContent"></div></div>
       <div class="footer-row">
-        <button class="btn btn-ghost" id="back2"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Modifica</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-ghost" id="back2"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Modifica</button>
+          <button class="btn btn-ghost" id="newQuoteBtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> Nuovo preventivo</button>
+        </div>
         <div style="display:flex;gap:8px;align-items:center">
           <button class="btn btn-ghost" id="saveBtn">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -599,7 +602,7 @@ function renderCart(){
           <button class="qbtn" onclick="chQty('${it.id}',1)">+</button>
           <select class="unit-sel" onchange="changeUnit('${it.id}',this.value)">
             <option value="n" ${it.unit==='n'?'selected':''}>pz</option>
-            <option value="cm" ${it.unit==='cm'?'selected':''}>cm</option>
+            <option value="m" ${it.unit==='m'?'selected':''}>m</option>
           </select>
         </div>
       </div>
@@ -715,7 +718,7 @@ function renderSide(){
   else sl.innerHTML=cart.map(i=>{
     const eff=effPrice(i);
     const hasD=i.itemDiscount>0;
-    const unitLbl=i.unit==='cm'?' cm':i.qty>1?' ×'+i.qty:'';
+    const unitLbl=i.unit==='m'?' m':i.qty>1?' ×'+i.qty:'';
     return`<div class="sline"><span class="sllabel" title="${i.name}">${i.name}${unitLbl}</span>${hasD?`<span style="font-size:.7rem;color:#2e7d32;margin-right:2px">-${i.itemDiscount}%</span>`:""}<span class="slval">${fmt(eff*parseFloat(i.qty||1))}</span></div>`;
   }).join("");
 
@@ -982,6 +985,27 @@ async function genPDF(){
 
 document.getElementById("dlBtn").addEventListener("click",genPDF);
 document.getElementById("saveBtn").addEventListener("click",savePreventivo);
+
+function nuovoPreventivo(){
+  // Reset campi cliente
+  document.getElementById("cName").value="";
+  document.getElementById("cCompany").value="";
+  document.getElementById("cEmail").value="";
+  document.getElementById("cPhone").value="";
+  document.getElementById("cNotes").value="";
+  // Reset carrello e sconti
+  cart=[];
+  totalDiscount=0;
+  // Reset sidebar cliente
+  document.getElementById("cliBoxWrap").innerHTML="";
+  // Reset bottone salva
+  const sb=document.getElementById("saveBtn");
+  if(sb){sb.className="btn btn-ghost";sb.innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Salva preventivo`;}
+  renderCart();
+  renderSide();
+  goStep(1);
+}
+document.getElementById("newQuoteBtn").addEventListener("click",nuovoPreventivo);
 document.getElementById("dlSide").addEventListener("click",genPDF);
 
 loadCatalog();renderCart();renderSide();
