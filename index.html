@@ -874,16 +874,16 @@ async function genPDF(){
       ];
     }),
     margin:{left:M,right:M},
-    styles:{font:"helvetica",fontSize:8.5,cellPadding:4,textColor:BK,lineColor:LT,lineWidth:.3},
-    headStyles:{fillColor:BK,textColor:WH,fontStyle:"bold",fontSize:7,halign:"left"},
+    styles:{font:"helvetica",fontSize:8.5,cellPadding:{top:5,bottom:5,left:4,right:4},textColor:BK,lineColor:LT,lineWidth:.3,valign:"middle"},
+    headStyles:{fillColor:BK,textColor:WH,fontStyle:"bold",fontSize:7,halign:"left",cellPadding:{top:5,bottom:5,left:4,right:4},valign:"middle"},
     columnStyles:{
-      0:{cellWidth:8,halign:"center",textColor:MU,fontSize:7},
-      1:{cellWidth:22,textColor:MT,fontSize:7.5},
+      0:{cellWidth:8,  halign:"center", textColor:MU, fontSize:7},
+      1:{cellWidth:24, textColor:MT,    fontSize:7.5},
       2:{cellWidth:"auto"},
-      3:{cellWidth:10,halign:"center"},
-      4:{cellWidth:22,halign:"right",textColor:MT},
-      5:{cellWidth:16,halign:"center",textColor:GR},
-      6:{cellWidth:26,halign:"right",fontStyle:"bold"}
+      3:{cellWidth:20, halign:"center"},
+      4:{cellWidth:26, halign:"right",  textColor:MT},
+      5:{cellWidth:18, halign:"center", textColor:GR},
+      6:{cellWidth:28, halign:"right",  fontStyle:"bold"}
     },
     alternateRowStyles:{fillColor:[248,247,245]}
   });
