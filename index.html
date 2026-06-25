@@ -96,6 +96,13 @@ textarea.fi{min-height:70px;resize:vertical;line-height:1.5}
 .sinput{width:100%;border:1px solid var(--border);border-radius:var(--r-lg);padding:11px 14px 11px 40px;font-family:'Inter',sans-serif;font-size:.9rem;color:var(--black);background:var(--off);outline:none;transition:all .18s;-webkit-appearance:none}
 .sinput:focus{border-color:var(--gold);background:var(--white);box-shadow:0 0 0 3px rgba(196,169,125,.15)}
 .sinput::placeholder{color:var(--muted);font-size:.84rem}
+.sinput{padding-right:44px}
+.mic-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:32px;height:32px;border-radius:50%;border:none;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .18s}
+.mic-btn:hover{background:var(--gold-pale);color:var(--gold-d)}
+.mic-btn.listening{background:#fdecea;color:#e74c3c;animation:micpulse 1.2s infinite}
+@keyframes micpulse{0%,100%{box-shadow:0 0 0 0 rgba(231,76,60,.4)}50%{box-shadow:0 0 0 6px rgba(231,76,60,0)}}
+.mic-hint{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--gold-pale);border:.5px solid var(--gold-line);border-radius:var(--r-md);padding:8px 12px;font-size:.78rem;color:var(--gold-d);text-align:center;z-index:90;display:none}
+.mic-hint.show{display:block}
 
 /* AUTOCOMPLETE */
 .acdrop{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--white);border:.5px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--sh-lg);overflow:hidden;display:none;z-index:100}
@@ -300,6 +307,9 @@ textarea.fi{min-height:70px;resize:vertical;line-height:1.5}
         <div class="ss">
           <svg class="s-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           <input class="sinput" type="text" id="searchInput" placeholder="Cerca per codice (es. A-100) o nome prodotto…" autocomplete="off">
+          <button class="mic-btn" id="micBtn" title="Detta il codice o il nome">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </button>
           <div class="acdrop" id="acDrop"></div>
         </div>
 
@@ -517,6 +527,86 @@ sinput.addEventListener("keydown",e=>{
   if(e.key==="Escape")drop.style.display="none";
   if(e.key==="Enter"){const q=sinput.value.trim();const ql=q.toLowerCase();const r=catalog.find(p=>p.code.toLowerCase()===ql)||catalog.find(p=>p.code.toLowerCase().startsWith(ql))||catalog.find(p=>p.code.toLowerCase().includes(ql))||catalog.find(p=>p.name.toLowerCase().includes(ql));if(r)addCart(catalog.indexOf(r))}
 });
+// ── DETTATURA VOCALE (Web Speech API) ──
+const micBtn=document.getElementById("micBtn");
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let recognition=null,listening=false;
+
+// Mappa fonetica per migliorare il riconoscimento delle lettere dei codici
+function normalizeSpoken(text){
+  let t=text.toLowerCase().trim();
+  // Rimuovi spazi tra lettere/numeri dettati ("esse acca uno" gestito sotto)
+  const phon={
+    "a":"a","bi":"b","ci":"c","di":"d","e":"e","effe":"f","gi":"g","acca":"h",
+    "i":"i","gei":"j","cappa":"k","elle":"l","emme":"m","enne":"n","o":"o",
+    "pi":"p","cu":"q","erre":"r","esse":"s","ti":"t","u":"u","vi":"v","vu":"v",
+    "doppia vu":"w","ics":"x","ipsilon":"y","zeta":"z",
+    "zero":"0","uno":"1","due":"2","tre":"3","quattro":"4","cinque":"5",
+    "sei":"6","sette":"7","otto":"8","nove":"9"
+  };
+  // Se la frase sembra una sequenza di lettere/numeri dettati, prova a comporli
+  const words=t.split(/[\s,.-]+/).filter(Boolean);
+  const allPhon=words.every(w=>phon[w]!==undefined);
+  if(allPhon&&words.length>0){
+    return words.map(w=>phon[w]).join("").toUpperCase();
+  }
+  // Altrimenti restituisci il testo pulito (per nomi prodotto)
+  return t;
+}
+
+function showMicHint(msg){
+  let hint=document.getElementById("micHint");
+  if(!hint){
+    hint=document.createElement("div");
+    hint.id="micHint";hint.className="mic-hint";
+    document.querySelector(".ss").appendChild(hint);
+  }
+  hint.textContent=msg;hint.classList.add("show");
+  clearTimeout(hint._t);
+  hint._t=setTimeout(()=>hint.classList.remove("show"),2500);
+}
+
+if(SR){
+  recognition=new SR();
+  recognition.lang="it-IT";
+  recognition.continuous=false;
+  recognition.interimResults=false;
+  recognition.maxAlternatives=3;
+
+  recognition.onstart=()=>{listening=true;micBtn.classList.add("listening");showMicHint("Sto ascoltando… detta il codice o il nome");};
+  recognition.onend=()=>{listening=false;micBtn.classList.remove("listening");};
+  recognition.onerror=ev=>{
+    listening=false;micBtn.classList.remove("listening");
+    if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){showMicHint("Permesso microfono negato");}
+    else if(ev.error==="no-speech"){showMicHint("Nessun audio rilevato, riprova");}
+    else{showMicHint("Errore microfono: "+ev.error);}
+  };
+  recognition.onresult=ev=>{
+    // Prova tutte le alternative, scegli quella che produce risultati nel catalogo
+    let best="";
+    for(let i=0;i<ev.results[0].length;i++){
+      const raw=ev.results[0][i].transcript;
+      const norm=normalizeSpoken(raw);
+      // Controlla se trova match nel catalogo
+      const ql=norm.toLowerCase();
+      const hasMatch=catalog.some(p=>p.code.toLowerCase().includes(ql)||p.name.toLowerCase().includes(ql));
+      if(hasMatch){best=norm;break;}
+      if(!best)best=norm;// fallback al primo
+    }
+    sinput.value=best;
+    sinput.dispatchEvent(new Event("input"));// trigger ricerca/autocomplete
+    sinput.focus();
+  };
+
+  micBtn.addEventListener("click",()=>{
+    if(listening){recognition.stop();return;}
+    try{recognition.start();}catch(e){/* già avviato */}
+  });
+}else{
+  // Browser non supporta: nascondi il microfono
+  micBtn.style.display="none";
+}
+
 document.addEventListener("click",e=>{if(!e.target.closest(".ss"))drop.style.display="none"});
 
 /* ── CART ── */
