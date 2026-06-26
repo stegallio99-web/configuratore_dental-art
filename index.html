@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Configuratore — Dental Art</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -222,14 +222,69 @@ textarea.fi{min-height:70px;resize:vertical;line-height:1.5}
 .st-val{font-size:1.75rem;font-weight:600;letter-spacing:-.04em}
 .sum-disc-line{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:4px}
 
+/* iOS auto-zoom prevention: inputs must be >=16px font-size */
+input,select,textarea,.fi,.sinput,.disc-input,.field-input{font-size:16px}
+.qnum-input{font-size:13px}
+@media(max-width:768px){.qnum-input{font-size:16px}}
+
 @media(max-width:768px){
-  .page{grid-template-columns:1fr;padding:1.5rem 1rem 3rem}
-  .sticky{position:static}
-  .fgrid{grid-template-columns:1fr}
-  .sumhdr{grid-template-columns:1fr}
+  .topbar{padding:0 1rem;height:48px}
+  .brand-sub{font-size:.7rem}
+  .progress{top:48px;height:40px}
+  .ps{padding:0 12px}
   .psl{display:none}
-  .sfgrid{grid-template-columns:1fr 1fr}
-  .sfgrid .fc:last-child{grid-column:1/-1}
+  .psep{width:12px}
+  .main{padding-top:88px}
+  .page{grid-template-columns:1fr;padding:1.25rem 0.875rem 3rem;gap:1rem}
+  .sticky{position:static}
+  .card{padding:1.25rem;border-radius:16px}
+  .stitle{font-size:1.25rem}
+  .ssub{font-size:.8rem;margin-bottom:1.25rem}
+  .fgrid{grid-template-columns:1fr}
+  .sumhdr{grid-template-columns:1fr;padding:.875rem 1rem}
+  .sfgrid{grid-template-columns:1fr}
+  .sfgrid .fc:last-child{grid-column:auto}
+
+  /* Cart item: stack nicely, prevent overflow */
+  .citem{flex-wrap:wrap;gap:8px;padding:10px}
+  .cinfo{flex:1 1 calc(100% - 80px);min-width:0;order:1}
+  .cidx{order:0}
+  .qty-unit-wrap{order:2;flex:0 0 auto}
+  .price-wrap{order:3;flex:1 1 auto;justify-content:flex-end;min-width:90px}
+  .rm-btn{order:4}
+
+  /* Footer buttons stack on small screens */
+  .footer-row{flex-direction:column;gap:10px;align-items:stretch}
+  .footer-row > div{display:flex;gap:8px;width:100%}
+  .footer-row .btn{flex:1;justify-content:center}
+  .footer-row > span{text-align:center;order:99}
+
+  /* Summary table scrolls horizontally instead of breaking */
+  #sumContent{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .stbl{min-width:480px}
+
+  /* Discount modal fits screen */
+  .disc-modal{width:calc(100vw - 32px);max-width:340px}
+
+  /* Search + mic sizing */
+  .sinput{padding:12px 44px 12px 40px}
+  .acdrop{max-height:50vh;overflow-y:auto}
+  .acrow{padding:11px 12px}
+
+  /* Special form button row */
+  .sf-actions{flex-wrap:wrap}
+}
+
+@media(max-width:420px){
+  .topbar{padding:0 .75rem}
+  .brand-sub{display:none}
+  .tb-div{display:none}
+  .page{padding:1rem .625rem 2.5rem}
+  .card{padding:1rem}
+  .qty-unit-wrap .qctrl{transform:scale(.95)}
+  .cprice{font-size:.82rem;min-width:auto}
+  .acprice{font-size:.8rem}
+  .accode{font-size:.68rem}
 }
 </style>
 </head>
@@ -688,7 +743,7 @@ function renderCart(){
       <div class="qty-unit-wrap">
         <div class="qctrl">
           <button class="qbtn" onclick="chQty('${it.id}',-1)">−</button>
-          <input type="number" class="qnum" style="width:42px;border:none;background:transparent;font-family:'Inter',sans-serif;font-size:.78rem;font-weight:600;text-align:center;outline:none;-webkit-appearance:none;appearance:none" min="0.01" step="0.01" value="${it.qty}" onchange="setQtyDirect('${it.id}',this.value)" onclick="this.select()">
+          <input type="number" class="qnum qnum-input" style="width:42px;border:none;background:transparent;font-family:'Inter',sans-serif;font-weight:600;text-align:center;outline:none;-webkit-appearance:none;appearance:none" min="0.01" step="0.01" value="${it.qty}" onchange="setQtyDirect('${it.id}',this.value)" onclick="this.select()">
           <button class="qbtn" onclick="chQty('${it.id}',1)">+</button>
           <select class="unit-sel" onchange="changeUnit('${it.id}',this.value)">
             <option value="n" ${it.unit==='n'?'selected':''}>pz</option>
